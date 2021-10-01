@@ -3,8 +3,8 @@ from ij.plugin.frame import RoiManager
 from ij.plugin.filter import Analyzer
 from ij.plugin import HyperStackConverter
 from IOFunctions import pyIO
-
-
+from bgCorrClass import Bgcorr
+from driftCorrClass import DriftCorr
 from ij import WindowManager
 
 import coloc
@@ -41,7 +41,7 @@ files = [x for x in os.listdir(inputFolder) if x.endswith('.tif')==True]
 preReaction =[]
 reaction = []
 for f in files:
-	if 'pre' in f:
+	if 'prereaction' in f:
 		preReaction.append(f)
 	else:
 		reaction.append(f)
@@ -76,11 +76,11 @@ for preFile,reactFile in zip(preReaction,reaction):
 	
 	title = reactChannels[0].getTitle()
 	#run maximum z-projection for finding all molecules
-	IJ.run(reactChannels[0],"Z Project...", "projection=[Average Intensity]")
-	maxTitle = "AVG_"+title
+	IJ.run(reactChannels[0],"Z Project...", "stop=10 projection=[Max Intensity]")
+	maxTitle = "MAX_"+title
 	IJ.selectWindow(maxTitle)
 	#run peak finder
-	IJ.run("Peak Finder", "use_discoidal_averaging_filter threshold=1 selection_radius=4 minimum_distance=7")
+	IJ.run("Peak Finder", "use_discoidal_averaging_filter threshold=2 selection_radius=3 minimum_distance=8")
 	#save rois, the folder has to exist!
 	RM.runCommand("Save", OutputFolder+reactFile[:-3]+'.zip')
 	#max projection is not needed anymore!
