@@ -89,7 +89,7 @@ for preFile,reactFile in zip(preReaction,reaction):
 	IJ.run("Set Measurements...", "centroid redirect=None decimal=0")
 	titles = [reactChannels[0].getTitle(),reactChannels[1].getTitle()]
 	for i in range(len(reactChannels)):		#loop over all color channels and integrate trajectories
-		IJ.run(reactChannels[i],"Integrate Trajectory", "background=2 integrate=[all slices] toImageJResultsTable")
+		IJ.run(reactChannels[i],"Integrate Trajectory", "background=3 integrate=[all slices] toImageJResultsTable")
 		tableWindow = WindowManager.getWindow("Trajectory Integrations")	
 		#IJ.run("Sort", "table=[Trajectory Integrations] column=slice group=trajectory ascending");
 		tableWindow.setTitle(reactChannels[i].getTitle())	
