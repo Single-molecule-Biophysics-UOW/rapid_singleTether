@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 #load files
 
-folder = 'C:/Users/shm975/Documents/tempData/211005/phi29/integrations/exp2_2uM/'
+folder = 'C:/Users/shm975/Documents/tempData/211005/phi29/integrations/exp1_10uM/'
 files=os.listdir(folder)
 
 preReactions = [f for f in files if 'prereaction' in f]
@@ -56,16 +56,20 @@ def subtract_bg(preReaction,reaction):
 calibrate(df_reaction,2)
 calibrate(df_preReaction,2)
 import rst_tools as rst
-rst.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211005/phi29/all_events/')
+#st.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211005/phi29/all_events/')
 #subtract_bg(df_preReaction,df_reaction)
 #%%
-
+def rolling_avg(df):
+    df["smoothRPA"] = df['Intensity_RPA'].rolling(3,min_periods=1).mean()
+    df["smoothDNA"] = df['Intensity_DNA'].rolling(3,min_periods=1).mean()
 df_reaction.reset_index(inplace=True)
-#dfFiltered,sortOutDNA = rst.findEvents_v2(df_reaction,column = 'Intensity_DNA',Rscore=0.7, return_events=True)
-eventList = [3,9,15,17,48,61,62,68,71,77,89,91,106,111,115,117,121,122,123,129,132,137,148,157,158,161,164,167,177,
-             195,214,215,216,218,220,240,243,244,246,248,252,257,286,296,299,303,322,325,326,330,336,342,344,346,349,350,355,357,366,367,375,
-             382,386,387,390,399,404,408,418,422,426,427,437,442,447,451,455,458,464,474,475,479,481,485,492,501,503]
-dfFiltered = rst.selectEvents(df_reaction, eventList)
+dfFiltered,sortOutDNA = rst.findEvents_v2(df_reaction,column = 'Intensity_DNA',Rscore=0.65, return_events=True)
+#eventList = [3,9,15,17,48,61,62,68,71,77,89,91,106,111,115,117,121,122,123,129,132,137,148,157,158,161,164,167,177,
+#             195,214,215,216,218,220,240,243,244,246,248,252,257,286,296,299,303,322,325,326,330,336,342,344,346,349,350,355,357,366,367,375,
+#             382,386,387,390,399,404,408,418,422,426,427,437,442,447,451,455,458,464,474,475,479,481,485,492,501,503]
+#dfFiltered = rst.selectEvents(df_reaction, eventList)
+
+rolling_avg(dfFiltered)
 
 
 
@@ -96,7 +100,7 @@ def plot_all_trajs(df,out):
             fig,ax = plt.subplots(3,3)
             n= 0
 
-rst.plot_allBig(dfFiltered, 'C:/Users/shm975/Documents/tempData/211005/phi29/man_events/')
+rst.plot_allBig(dfFiltered, 'C:/Users/shm975/Documents/tempData/211005/phi29/events_10uM/')
 
 #%%
 def alignTime(df):
@@ -133,18 +137,42 @@ rst.regression_analysis(dfFiltered)
 #%%
 dfFiltered.reset_index(inplace=True)
 print(dfFiltered.keys())
+#%%
+
+
 
 #%%
 df_synchronyzed = alignData(dfFiltered,1.)
 
-
+#df_synchronyzed.reset_index(inplace=True)
 def rolling_avg(df):
     df["smoothRPA"] = df['Intensity_RPA'].rolling(3,min_periods=1).mean()
     df["smoothDNA"] = df['Intensity_DNA'].rolling(3,min_periods=1).mean()
+def trunc_trajs(df,xcolumn,lower,upper):
+    truncatedLower = df.groupby('trajectory').apply(
+        lambda x: x.loc[x[xcolumn] >lower ]
+        )
+    truncatedUpper = truncatedLower.groupby('trajectory').apply(
+        lambda x: x.loc[x[xcolumn] <upper ]
+        )
+    return truncatedUpper
+
+    
 
 
-rolling_avg(df_synchronyzed)    
+    
 
+#rolling_avg(df_synchronyzed)    
+df_synchronyzed = trunc_trajs(df_synchronyzed,'alignedTime',-100,100)
+
+df_synchronyzed = rst.normalize_all_trajs(df_synchronyzed,'smoothRPA')
+
+df_synchronyzed = trunc_trajs(df_synchronyzed,'alignedTime',-80,100)
+
+df_synchronyzed.to_csv('C:/Users/shm975/Documents/tempData/211005/phi29/selectedEvents10uM.csv')
+
+
+#%%
 
 plot_all_trajs(df_synchronyzed, 'C:/Users/shm975/Documents/tempData/211005/phi29/man_events/')
 

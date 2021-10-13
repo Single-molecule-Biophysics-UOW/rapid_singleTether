@@ -124,7 +124,16 @@ def plot_all_trajs(df,out):
             #make new one:
             fig,ax = plt.subplots(3,3)
             n= 0
-            
+def normalize_all_trajs(df,ycolumn,head=0,tail=0):
+    df['norm_'+ycolumn] = df.groupby('trajectory')[ycolumn].transform(norm,head=head,tail=tail)
+    return df
+
+def norm(traj,head=100,tail=180):
+    #traj_temp = traj.drop(traj.index[0:head],inplace=False)
+    #traj_temp.drop(traj.index[traj.index[-1]-tail:],inplace=True)    
+    normalizationValue = traj.max()  
+    traj = (traj/normalizationValue)*1.
+    return traj             
             
 def plot_allBig(df,out):
     
