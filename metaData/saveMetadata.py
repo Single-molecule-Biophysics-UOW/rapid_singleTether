@@ -29,6 +29,10 @@ for filename in files:
 	outname = (OutputFolder+filename[:-4])
 	seriesCount,colorCount = pyIO.initializeFile(File)		
 	IJ.run("Bio-Formats", "open="+File+" color_mode=Grayscale display_metadata rois_import=[ROI manager] view=[Metadata only] stack_order=Default");
-	metadata = WindowManager.getActiveTable()
+	windows = WindowManager.getAllNonImageWindows()
+	for i in windows:
+		print(i)
+		metadata=i
+	 #= WindowManager.getActiveTable()
 	IJ.saveAs("Text",outname+"_meta.csv")
 	metadata.close()

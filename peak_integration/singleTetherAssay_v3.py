@@ -18,9 +18,9 @@ import java.awt.event.KeyEvent as KeyEvent
 developmentMode = True	#set this to false if you're just using the script!
 
 def deleteSource():
-	"""deletes the compiled source file in the install dir, to make sure it's recompiled after changes are made.
+	""" deletes the compiled source file in the install dir, to make sure it's recompiled after changes are made.
 	   tool for development! Should otherwise not be called!
-"""
+	"""
 
 	fijiDir=os.path.abspath(getProperty('user.dir')+"/")
 	LibPath = fijiDir + '/jars/Lib/'

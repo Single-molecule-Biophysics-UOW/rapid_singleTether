@@ -12,25 +12,30 @@ from matplotlib import pyplot as plt
 
 #load files
 
-folder = 'C:/Users/shm975/Documents/tempData/211005/phi29/integrations/exp1_10uM/'
+folder = 'C:/Users/shm975/Documents/tempData/211023/phi29/integration/'
 files=os.listdir(folder)
 
 preReactions = [f for f in files if 'prereaction' in f]
 reactions = [f for f in files if '_reaction' in f]
 
-print(preReactions)
 print(reactions)
-
 #read files and merge color channels.
-
+#%%
 C1_reaction = pd.read_csv(folder+reactions[0]) 
 C1_preReaction = pd.read_csv(folder+preReactions[0])
-C2_reaction = pd.read_csv(folder+reactions[1]) 
-C2_preReaction = pd.read_csv(folder+preReactions[1])
+C2_reaction = pd.read_csv(folder+reactions[2]) 
+C2_preReaction = pd.read_csv(folder+preReactions[2])
+
+print(C2_reaction)
 
 df_reaction = pd.merge(C1_reaction,C2_reaction, on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
+
+print(df_reaction)
 df_preReaction = pd.merge(C1_preReaction,C2_preReaction, on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
 
+
+#print (df_reaction)
+#print(C2_reaction)
 def calibrate(merged,conv):
     """
     add column with seconds
@@ -53,10 +58,10 @@ def subtract_bg(preReaction,reaction):
     corrIntColumn = pd.concat(corr_Intensity_RPA)
     reaction['corr_Intensity_RPA'] = corrIntColumn
     
-calibrate(df_reaction,2)
-calibrate(df_preReaction,2)
+calibrate(df_reaction,1)
+calibrate(df_preReaction,1)
 import rst_tools as rst
-#st.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211005/phi29/all_events/')
+rst.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211023/phi29/all_traj/')
 #subtract_bg(df_preReaction,df_reaction)
 #%%
 def rolling_avg(df):
@@ -76,21 +81,22 @@ rolling_avg(dfFiltered)
 
 #%%plot some trajectories
 import itertools
-
-def plot_all_trajs(df,out):
+def segmentPlotter(seg_data,ax):
+    #steps = True:
+    for index, row in seg_data.iterrows():
+        ax.plot([row["x1"],row["x2"]],[row["y1"],row["y2"]],color='red')
+def plot_all_trajs(df_integration,out,df_segment=None,segments=False):
     fig,ax = plt.subplots(3,3)
+    ax_positions = itertools.permutations((0,1,2),2)
     indeces = list(itertools.product([0,1,2],repeat =2))
     n=0
-    for name,group in df.groupby("trajectory"):                
-        rpa = ((group["Intensity_RPA"]/group["Intensity_RPA"].max())*group["Intensity_DNA"].max()).rolling(4, min_periods=1).mean()
-        ax[indeces[n]].plot(group["seconds"],rpa,color='magenta')
-        ax[indeces[n]].plot(group["seconds"],group["Intensity_DNA"],color='black')
-        ax[indeces[n]].plot(group["seconds"],group["regression"],color='red')
-        #ax[indeces[n]].plot(group["seconds"],-group["derivative"],color='blue')
+    for name,group in df_integration.groupby("trajectory"):                 
+        ax[indeces[n]].plot(group["slice"],group["Intensity"])
         ax[indeces[n]].set_title('trajectory {}'.format(name))
-        #find the corresponding segments:
-        #segment = df_segment.loc[df_segment['trajectory'] == name]
-        #segmentPlotter(segment,ax[indeces[n]])
+        if segments:
+            #find the corresponding segments:
+            segment = df_segment.loc[df_segment['trajectory'] == name]
+            segmentPlotter(segment,ax[indeces[n]])
         n+=1
         if n == 9:
             #save figure and close it:
@@ -99,9 +105,31 @@ def plot_all_trajs(df,out):
             #make new one:
             fig,ax = plt.subplots(3,3)
             n= 0
+# def plot_all_trajs(df,out):
+#     fig,ax = plt.subplots(3,3)
+#     indeces = list(itertools.product([0,1,2],repeat =2))
+#     n=0
+#     for name,group in df.groupby("trajectory"):                
+#         rpa = ((group["Intensity_RPA"]/group["Intensity_RPA"].max())*group["Intensity_DNA"].max()).rolling(4, min_periods=1).mean()
+#         ax[indeces[n]].plot(group["seconds"],rpa,color='magenta')
+#         ax[indeces[n]].plot(group["seconds"],group["Intensity_DNA"],color='black')
+#         ax[indeces[n]].plot(group["seconds"],group["regression"],color='red')
+#         #ax[indeces[n]].plot(group["seconds"],-group["derivative"],color='blue')
+#         ax[indeces[n]].set_title('trajectory {}'.format(name))
+#         #find the corresponding segments:
+#         #segment = df_segment.loc[df_segment['trajectory'] == name]
+#         #segmentPlotter(segment,ax[indeces[n]])
+#         n+=1
+#         if n == 9:
+#             #save figure and close it:
+#             fig.savefig(out+'trajectory_'+str(name))
+#             plt.close(fig)
+#             #make new one:
+#             fig,ax = plt.subplots(3,3)
+#             n= 0
 
-rst.plot_allBig(dfFiltered, 'C:/Users/shm975/Documents/tempData/211005/phi29/events_10uM/')
-
+rst.plot_allBig(dfFiltered, 'C:/Users/shm975/Documents/tempData/211023/phi29/events/')
+print(dfFiltered)
 #%%
 def alignTime(df):
     regr = np.array(df)
@@ -109,7 +137,6 @@ def alignTime(df):
     changePoint = np.where(np.gradient(regr)!=0)[0][0]     
     newTime = oldTime -changePoint
     return newTime
-
 
 def calcShift(df):
     """calculate the shift for aligment as in alignTime, but only return the shift"""
@@ -137,7 +164,19 @@ rst.regression_analysis(dfFiltered)
 #%%
 dfFiltered.reset_index(inplace=True)
 print(dfFiltered.keys())
-#%%
+def find_unbinding(df):
+    """
+    Atempt to find events unbinding in one step
+    """
+    #first apply regression algorithm.
+    
+    #apply threshold to R**2 value to filter for events that have a discrete step
+    
+    #second filtering step: threshold size of the unbinding step i.e. decrease in intensity.
+    # the size needs to be above a certain limit, found by quantifying general sytox intensity on dsDNA template.
+    # alternatively it can be an arbitrary threshold of 100% +- something
+    #return dataframe contianing the filtered data.
+    #altrnatively just return a list (dataframe?) of trajectories numbers?
 
 
 
@@ -169,7 +208,7 @@ df_synchronyzed = rst.normalize_all_trajs(df_synchronyzed,'smoothRPA')
 
 df_synchronyzed = trunc_trajs(df_synchronyzed,'alignedTime',-80,100)
 
-df_synchronyzed.to_csv('C:/Users/shm975/Documents/tempData/211005/phi29/selectedEvents10uM.csv')
+df_synchronyzed.to_csv('C:/Users/shm975/Documents/tempData/211023/phi29/selectedEvents8uM.csv')
 
 
 #%%
