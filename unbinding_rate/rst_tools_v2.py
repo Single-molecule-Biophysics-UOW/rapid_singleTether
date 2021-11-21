@@ -9,7 +9,7 @@ Created on Wed Oct  6 14:04:54 2021
 import itertools
 from matplotlib import pyplot as plt
 import numpy as np
-from synchronization import STA as sta
+import STA as sta
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression
 import pandas as pd
@@ -118,39 +118,13 @@ def segmentPlotter(seg_data,ax):
         ax.plot([row["x1"],row["x2"]],[row["y1"],row["y2"]],color='red')
         
 def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 'slice', ycolumn = 'Intensity', groupName = 'trajectory'):
-    """
-    
-
-    Parameters
-    ----------
-    df_integration : pd.DataFrame
-        datframe containing all trajectories to plot.
-    out : String
-        path to output folder
-    df_segment : pd.DataFrame, optional
-        dataframe containing segments from changePoint
-    segments : bool, optional
-        Segments will be plotted if True. The default is False.
-    xcolumn : String, optional
-        xcolumn name. The default is 'slice'.
-    ycolumn :  String, optional
-        ycolumn name. The default is 'Intensity'.
-    groupName : String, optional
-        Name to group data by. The default is 'trajectory'.
-        Necessary if data contains more than one trajectory
-
-    Returns
-    -------
-    None.
-
-    """
     fig,ax = plt.subplots(3,3)
     ax_positions = itertools.permutations((0,1,2),2)
     indeces = list(itertools.product([0,1,2],repeat =2))
     n=0
     
     if isinstance(ycolumn,str):        
-        for name,group in df_integration.groupby(groupName):                             
+        for name,group in df_integration.groupby(groupName):                 
             ax[indeces[n]].plot(group[xcolumn],group[ycolumn])
             ax[indeces[n]].set_title('trajectory {}'.format(name))
             if segments:
@@ -158,39 +132,29 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                 segment = df_segment.loc[df_segment[groupName] == name]
                 segmentPlotter(segment,ax[indeces[n]])
             n+=1
-            if n == 9:
-                #save figure and close it:
-                fig.savefig(out+'trajectory_'+str(name)+'.jpg')
-                plt.close(fig)
-                #make new one:
-                fig,ax = plt.subplots(3,3)
-                n= 0
-            
     if isinstance(ycolumn,list):
         for name,group in df_integration.groupby(groupName):                 
             for column in ycolumn:
-                #print ('n:{}, column:{}'.format(n,column))
+                print ('n:{}, column:{}'.format(n,column))
                 try:
-                    t = (indeces[n])
+                    print(indeces[n])
                 except:
                     print("indexing error")
                 try:
-                    t=(group[column])
+                    print(group[column])
                 except:
                     print('ycolumn problem')
                 ax[indeces[n]].plot(group[xcolumn],group[column])
-                
-                
-                #ax[indeces[n]].plot([0,group[xcolumn].max()],[group[column].mean()+10*group[column].std(),group[column].mean()+10*group[column].std()])
                 ax[indeces[n]].set_title('trajectory {}'.format(name))
                 if segments:
                     #find the corresponding segments:                    
                     segment = df_segment.loc[df_segment[groupName] == name]
-                    segmentPlotter(segment,ax[indeces[n]])  
+                    segmentPlotter(segment,ax[indeces[n]])
             n+=1
+    
             if n == 9:
                 #save figure and close it:
-                fig.savefig(out+'trajectory_'+str(name)+'.png')
+                fig.savefig(out+'trajectory_'+str(name))
                 plt.close(fig)
                 #make new one:
                 fig,ax = plt.subplots(3,3)
@@ -273,104 +237,17 @@ def find_unbinding(df, column, Rscore, threshold):
     final = filtered.dropna()
     final.reset_index(inplace=True)
     return final, sortOut, sortOutReason
-def derivative(df):
-    return df.diff().fillna(0).abs()
-
-def find_unbinding_v2(df, column, Rscore, threshold):
-    """
-    This will find dissociation events based on the first derivative.
-    The regression technique is good at finding the timepoint of dissociation, but not 
-    so much for deciding if it is one step or not!
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        input data
-    column : String
-        column name of y data to analyse.
-    Rscore : TYPE
-        DESCRIPTION.
-    threshold : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    final : TYPE
-        DESCRIPTION.
-    sortOut : TYPE
-        DESCRIPTION.
-    sortOutReason : TYPE
-        DESCRIPTION.
-
-    """
-    #find first derivative:
-    df['derivative'] = df.groupby('trajectory')[column].transform(derivative)
-    #the derivative should have a very clear peak (a minimum?) at the time of dissociation!
-    #find that time by the regression method:
-    df['regression'] = df.groupby('trajectory')[column].transform(regression,output='predict')
-    df['score'] = df.groupby('trajectory')[column].transform(regression,output='score')
-    sortOut = []
-    sortOutReason = []
-    for name,group in df.groupby('trajectory'):        
-        timing = group[group['regression'].diff().fillna(0) !=0]    #this is where the dissociation happends
-        #print(len(timing))
-        #now see if the derivative at that time is above/below a threshold:
-        #to avoid +-1 indexing errors take derivative
-        if timing['derivative'].mean() < threshold:
-            sortOut.append(name)
-            sortOutReason.append('smallDerivative')
-            continue
-        #now make sure the stepsize is large too:
-        values = group['regression'].unique() #contains two values
-        stepSize = values[0]-values[1]
-        if stepSize < threshold:
-            sortOut.append(name)
-            sortOutReason.append('smallStep')
-            continue
-        
-    filtered = df[df.groupby('trajectory').filter(lambda x: x.name not in sortOut).astype('bool')]
-    final = filtered.dropna()
-    final.reset_index(inplace=True)
-    return final, sortOut, sortOutReason        
-        
-        
-        
-        
-        
-        
-        
-        
-    #     if groups['score'].mean()>Rscore:
-    #         #if groups['regression'].tail(5).mean() < groups['regression'].head(5).mean():
-    #         values = groups['regression'].unique() #contains two values
-            
-    #         stepSize = values[0]-values[1]
-            
-    #         if stepSize >= threshold:
-    #             continue
-    #         else:
-    #             sortOut.append(names)
-    #             sortOutReason.append('smallStep')
-    #     else:
-    #         sortOut.append(names)
-    #         sortOutReason.append('lowScore')
-    # filtered = df[df.groupby('trajectory').filter(lambda x: x.name not in sortOut).astype('bool')]
-    # final = filtered.dropna()
-    # final.reset_index(inplace=True)
-    # return final, sortOut, sortOutReason
-
-
-
 def unbinding_timing(df,column, groupName,time_corr = False):
     #loop through all trajectories
     # and append the time of unbinding (i.e regression.diff()!=0 to a list)
     all_timing = []
     for name,group in df.groupby(groupName):
+        derivative = group['regression'].diff().fillna(0)
         timing = group[group['regression'].diff().fillna(0) !=0]
-        all_timing.append(timing[column].iloc[0])
+        all_timing.append(timing['seconds'].iloc[0])
         #if time_corr is True apply a corrected time axis that starts when the first molecule unbinds:
         
-    timingDF = pd.DataFrame({column:all_timing})
+    timingDF = pd.DataFrame({'seconds':all_timing})
     return timingDF
     
     

@@ -9,12 +9,12 @@ Created on Mon Nov 15 17:31:30 2021
 import numpy as np
 from matplotlib import pyplot as plt
 
-def simulate(p1,p2,N=10000, timesteps = 100):
+def simulate(p1,p2,N=10000, timesteps = 200):
     
     
     states = np.ones(N)+1 #all particles have state 2 in hte beginning
     
-    time = np.arange(0,timesteps,1)    
+    time = np.arange(1,timesteps+1,1)    
     nativeList = []
     decayList = []
     rate1 = 1-p1
@@ -61,8 +61,10 @@ for s in scenarios:
                 
     
 #%%    
+from scipy.stats import rv_continuous
 from scipy.special import gamma as gf   
 from scipy.optimize import curve_fit 
+from unbinding_rate.statsmodel_hypoExp import hypoexpon 
     #print(np.random.exponential(0))
 def hypoExp(x,l1,l2, cumulative=True):
     #if l1 ==l2:
@@ -93,9 +95,21 @@ def hypoExp(x,l1,l2, cumulative=True):
         f=(f*np.sum(f))/np.max(f)
     return f
 
+class hypoexp(rv_continuous): 
+    "hypo-exponential distribution"           
+    def _pdf(self,x,l1,l2):
+        
+        C = (l1*l2/(l1-l2)) 
+        return (C* (np.exp(-l2*x)-np.exp(-l1*x)))
+    #def _logpdf(self,x,l1,l2)
+    # def _logpdf(self, x, l1, l2):
+    #     logC = np.log(1/(l1-l2))
+    #     logpdf = logC - l2*x + np.log(1+np.exp(x*(l2-l2)))
+    #     return logpdf
+    def _argcheck(self, l1,l2):
+        return l1!=l2 and 0<l1 and 0<l2
 
-
-
+hypoexp = hypoexp(name = 'hypoexp')
 #fig,[ax1,ax2] = plt.subplots(1,2)
 plt.figure()
 ax1 = plt.subplot(1,3,1)
@@ -109,12 +123,12 @@ ax3 = plt.subplot(3,3,5)
 #ax3.margins(x=0, y=-0.25) 
 ax4 = plt.subplot(3,3,8)
 #ax4.set_xscale('log')
-#ax4.margins(x=0, y=-0.25) 
+ax4.margins(x=0, y=-0.25) 
 ax5 = plt.subplot(3,3,3)
 ax6 = plt.subplot(3,3,6)
 ax7 = plt.subplot(3,3,9)
 axes = [ax1,ax2,ax3,ax4,ax5,ax6,ax7]
-x = np.arange(0,100,0.1)
+x = np.arange(0.1,200,0.1)
 for i in range(3):
     
     ax1.plot(nativeList[i], label = 'native state, p1={:.3},p2={:.3}'.format(scenarios[i][0],scenarios[i][1]),ls=':')
@@ -122,7 +136,19 @@ for i in range(3):
     ax1.plot(intermediateList[i],label='intermediate, p1={:.3},p2={:.3}'.format(scenarios[i][0],scenarios[i][1]),ls = '--')
     ax1.plot(nativeList[i]+intermediateList[i],label = 'observed, p1={:.3},p2={:.3}'.format(scenarios[i][0],scenarios[i][1]))
     #ax1.legend()
+    
+    cons = ({'type': 'ineq',
+         'fun' : lambda x: np.all(x)})
+
+    
+    model = hypoexpon(timeOfDis[i])
+    results = model.fit(start_params= [0.01,10],maxiter=100000, maxfunc= 10000, constraints=cons)
+    print(results.summary())
+    #params = hypoexp.fit(timeOfDis[i],0.2,'MLE',floc = 0,fscale = 1)
+    params = results.params
     axes[i+1].hist(timeOfDis[i],edgecolor='black',bins=50,density = True,label = 'p1={:.3}, p2={:.3}'.format(scenarios[i][0],scenarios[i][1]),alpha = 0.5,cumulative = True)
+    axes[i+4].plot(x,model._pdf(x, *params),label = 'fit: p1 = {:.2}, p2 = {:.2}'.format(params[0],params[1]),alpha = 0.7,color = 'red')
+    
     axes[i+4].hist(timeOfDis[i],edgecolor='black',bins=50,density = True,label = 'p1={:.3}, p2={:.3}'.format(scenarios[i][0],scenarios[i][1]),alpha = 0.5,cumulative = False)
     mean = np.mean(timeOfDis[i])
     std = np.std(timeOfDis[i])
@@ -135,20 +161,21 @@ for i in range(3):
         #print('rate1:{:.2}, rate2: {:.2}, c$_V$={}'.format(rate1,rate2,cV))
     
     print(len(timeOfDis[i]))
-    X2 = np.sort(timeOfDis[i])
-    F2 = np.array(range(len(timeOfDis[i])))/float(len(timeOfDis[i]))
+
 
     #binStep = bins[1]-bins[0]
     
     #cumData = np.cumsum(hist)*binStep    
-
-    popt,pcov = curve_fit(hypoExp,X2,F2,p0=[0.08,0.2])
-    axes[i+1].plot(x,hypoExp(x, scenarios[i][0], scenarios[i][1]))
-    axes[i+4].plot(x,hypoExp(x, scenarios[i][0], scenarios[i][1],cumulative=False))
-    print(popt)
-    axes[i+1].legend()
-    print(scenarios[i][0],scenarios[i][1])
     
+    #popt,pcov = curve_fit(hypoExp,X2,F2,p0=[0.08,0.2])
+    #axes[i+1].plot(x,hypoExp(x, scenarios[i][0], scenarios[i][1]))
+    #axes[i+4].plot(x,hypoExp(x, scenarios[i][0], scenarios[i][1],cumulative=False))
+    #axes[i+4].plot(x,hypoexp.pdf(x, *params),label = 'fit: p1 = {:.2}, p2 = {:.2}'.format(params[0],params[1]),alpha = 0.7,color = 'red')
+    axes[i+4].plot(x,hypoexp.pdf(x, scenarios[i][0],scenarios[i][1]),label = 'theoretical',color = 'green',lw=3)
+    axes[i+1].legend()
+    axes[i+4].legend()
+    print(scenarios[i][0],scenarios[i][1])
+    #print(params)
 #ax2.plot(time,hypoExp(time,1-rate1,1-rate2))
 
 
