@@ -30,6 +30,31 @@ def start_synch(df, column = 'corr_Intensity_RPA'):
         #first do a rolling avg
     return synchRPA
 
+def start_synch_uvrD(df, column = 'corr_Intensity_RPA'):
+    """
+    atempt to find the begin of strand displacement by thresholding.
+    Intensity of 1 RPA is 6500 => set threshold to 2 RPAs binding
+    """
+    n=0
+    
+    
+    
+    
+    thresholded = []
+    
+    df['smoothRPA'] = df[column].rolling(4,min_periods=1).mean()
+    
+    start_int = df['smoothRPA'].head(10).mean()
+    start_int_std = df['smoothRPA'].head(10).std()
+    
+    threshold = start_int - start_int_std
+    
+    df['thresholded'] = df['smoothRPA'].clip(lower=threshold)
+    #df.reset_index(inplace=True)
+    synchRPA = alignData(df)
+        #first do a rolling avg
+    return synchRPA
+
 
 def alignTime(df):
     thresholded = np.array(df)

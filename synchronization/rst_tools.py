@@ -14,6 +14,33 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression
 import pandas as pd
 
+def alignTime(df):
+    regr = np.array(df)
+    oldTime = df.index.get_level_values(1)
+    changePoint = np.where(np.gradient(regr)!=0)[0][0]     
+    newTime = oldTime -changePoint
+    return newTime
+
+def calcShift(df):
+    """calculate the shift for aligment as in alignTime, but only return the shift"""
+    regr = np.array(df)
+    oldTime = df.index.get_level_values(1)
+    changePoint = np.where(np.gradient(regr)!=0)[0][0]     
+    return changePoint
+def alignData(df,timeConversion,traj_column = 'trajectory',slice_column = 'slice',changePoint_column = 'regression',returnShift = False):
+    df = df.set_index([traj_column,slice_column]).sort_index()
+    df['alignedTime'] = df[changePoint_column].groupby(traj_column).transform(alignTime)
+    if returnShift:
+        cpList = []
+        for name,groups in df[changePoint_column].groupby(traj_column):
+            changePoint = calcShift(groups)
+            cpList.append(changePoint)
+#convert time from frames to seconds:
+    df['seconds'] = df['alignedTime'].mul(timeConversion)
+    df['raw time'] = df.index.get_level_values(1)*(timeConversion)
+    if returnShift:
+        return df,cpList
+    return df
 def regression(df,maxDepth=1,output = 'predict'):
 
     x,y = np.array(df.index.get_level_values(1)).reshape(-1,1),np.array(df).reshape(-1,1)

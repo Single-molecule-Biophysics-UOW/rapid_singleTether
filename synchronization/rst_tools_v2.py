@@ -15,6 +15,34 @@ from sklearn.linear_model import LinearRegression
 import pandas as pd
 from scipy.signal import savgol_filter
 
+def alignTime(df):
+    regr = np.array(df)
+    oldTime = df.index.get_level_values(1)
+    changePoint = np.where(np.gradient(regr)!=0)[0][0]     
+    newTime = oldTime -changePoint
+    return newTime
+
+def calcShift(df):
+    """calculate the shift for aligment as in alignTime, but only return the shift"""
+    regr = np.array(df)
+    oldTime = df.index.get_level_values(1)
+    changePoint = np.where(np.gradient(regr)!=0)[0][0]     
+    return changePoint
+def alignData(df,timeConversion,traj_column = 'trajectory',slice_column = 'slice',changePoint_column = 'regression',returnShift = False):
+    df = df.set_index([traj_column,slice_column]).sort_index()
+    df['alignedTime'] = df[changePoint_column].groupby(traj_column).transform(alignTime)
+    if returnShift:
+        cpList = []
+        for name,groups in df[changePoint_column].groupby(traj_column):
+            changePoint = calcShift(groups)
+            cpList.append(changePoint)
+#convert time from frames to seconds:
+    df['seconds'] = df['alignedTime'].mul(timeConversion)
+    df['raw time'] = df.index.get_level_values(1)*(timeConversion)
+    if returnShift:
+        return df,cpList
+    return df
+
 def linearRegression(df, output ='Score'):
     x,y = np.array(df.index.get_level_values(1)).reshape(-1,1),np.array(df).reshape(-1,1)
     
@@ -336,9 +364,27 @@ def find_unbinding_v2(df, column, Rscore, threshold):
         
         
         
-        
-        
-        
+def sortOut_trajectories(df, sortOut, groupName = 'trajectory'):
+    """
+    removes trajectories (groups) from dataframe based on list
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        dataFrame that can be grouped into trajectories
+    sortOut : array-like
+        array/list containing trajectory names to sort out
+
+    Returns
+    -------
+    filtered pd.DataFrame
+
+    """
+    print(df)   
+    filtered = df[df.groupby(groupName).filter(lambda x: x.name not in sortOut).astype('bool')]
+    final = filtered.dropna()
+    final.reset_index(inplace=True)
+    return final
         
     #     if groups['score'].mean()>Rscore:
     #         #if groups['regression'].tail(5).mean() < groups['regression'].head(5).mean():

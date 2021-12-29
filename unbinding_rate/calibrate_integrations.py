@@ -12,9 +12,9 @@ from synchronization import rst_tools_v2 as rst
 import numpy as np
 from matplotlib import pyplot as plt
 
-meta_folder = "C:/Users/stefa/OneDrive/Documents/tempData/UvrdData/UvrD_data/5'bioBlunt/meta/"
-uncalib_integration_folder = "C:/Users/stefa/OneDrive/Documents/tempData/UvrdData/UvrD_data/5'bioBlunt/uncalibrated_integrations/"
-calib_integration_folder = "C:/Users/stefa/OneDrive/Documents/tempData/UvrdData/UvrD_data/5'bioBlunt/integration/"
+meta_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\meta\\"
+uncalib_integration_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\uncalib_integration\\"
+calib_integration_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\integration\\"
 
 meta_files = os.listdir(meta_folder)
 integration_files = os.listdir(uncalib_integration_folder)
@@ -31,13 +31,13 @@ def findTimeCov(path):
     return conv
 
 for f in integration_files:
-    
+    print(f)
     #we assume that the meta_file has the same name, apart from the _meta.csv!
     #find the right meta file:
     for m in meta_files:
-        if '8uM' in f:
-            print(f[5:-4])
-            if f[5:-4] in m:
+        print(m)
+        print('f:',f[5:-8])
+        if f[5:-8] in m:
                 print('f:',f)
             #print('meta:',m)
             #print('found metadata!')
