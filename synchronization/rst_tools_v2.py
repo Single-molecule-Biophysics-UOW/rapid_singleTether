@@ -5,7 +5,7 @@ Created on Wed Oct  6 14:04:54 2021
 @author: shm975
 """
 
-
+import traceback
 import itertools
 from matplotlib import pyplot as plt
 import numpy as np
@@ -14,6 +14,7 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression
 import pandas as pd
 from scipy.signal import savgol_filter
+from scipy.optimize import curve_fit
 
 def alignTime(df):
     regr = np.array(df)
@@ -195,7 +196,11 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                 n= 0
             
     if isinstance(ycolumn,list):
-        for name,group in df_integration.groupby(groupName):                 
+        for name,group in df_integration.groupby(groupName):
+            if 'rate' in ycolumn:
+                label = '{:.2f} bp/s'.format((group['rate'].unique())[0])
+            else:
+                label = None                 
             for column in ycolumn:
                 #print ('n:{}, column:{}'.format(n,column))
                 try:
@@ -206,7 +211,7 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                     t=(group[column])
                 except:
                     print('ycolumn problem')
-                ax[indeces[n]].plot(group[xcolumn],group[column])
+                line, =ax[indeces[n]].plot(group[xcolumn],group[column])
                 
                 
                 #ax[indeces[n]].plot([0,group[xcolumn].max()],[group[column].mean()+10*group[column].std(),group[column].mean()+10*group[column].std()])
@@ -215,6 +220,9 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                     #find the corresponding segments:                    
                     segment = df_segment.loc[df_segment[groupName] == name]
                     segmentPlotter(segment,ax[indeces[n]])  
+            line.set_label(label)
+            ax[indeces[n]].legend()
+            
             n+=1
             if n == 9:
                 #save figure and close it:
@@ -445,3 +453,92 @@ def plot_allBig(df,out):
         #     #make new one:
         #     fig,ax = plt.subplots(3,3)
         #     n= 0
+    
+def piecewise_linear(x,m,a,t):
+    """
+    \
+     \
+      \
+       \_________
+
+    """
+    f1 = lambda x: m*x+t
+    f2 = lambda x: m*a+t
+    piecewise = np.piecewise(x,[x<=a],[f1,f2])
+    return piecewise
+
+def piecewise_linear_triple(x,m,a,b,t):
+    """
+    ________
+            \
+             \
+              \
+               \_________
+
+    """
+    f0 = lambda x: m*a+t
+    f1 = lambda x: m*x+t
+    f2 = lambda x: m*b+t
+    condlist = (x<a,((x>=a)&(x<=b)),x>b)
+    
+    
+    piecewise = np.piecewise(x,condlist,[f0,f1,f2])
+    return piecewise
+
+def lin(x,m,t):
+    return m*x+t
+
+def complex_norm(df,xy = None,sem=None,initial_guess =[-200,30,300,100000], decrease =  True):
+    if xy:
+        t = np.array(df[xy[0]])
+        Intensity = np.array(df[xy[1]])
+        print(Intensity)
+    else:
+        t = df.index
+        Intensity = np.array(df)
+        print(Intensity)
+    if isinstance(sem,str):
+        semData = np.array(df[sem])
+        # print('norm sem')
+    
+
+    # print(t)
+    #first do the fit and return popt:
+    try:
+        # print('trying to fit')
+        popt,pcov= curve_fit(piecewise_linear_triple, t,Intensity,p0=initial_guess,maxfev=10000)
+    except ValueError:
+        traceback.print_exc()
+        raise ValueError      
+    except Exception as inst:
+        print(type(inst))
+        # print(t)
+        # print(Intensity)
+        # plt.plot(t,Intensity)
+        # plt.plot(t,piecewise_linear_triple(t,-20,30,300,100000))
+        # plt.show()
+        norm_Intensity = np.ones(len(t))*np.nan
+        return norm_Intensity
+    # intensity when time <popt[1]: 2600 bp
+    # intensity when time >popt[2]: 0 bp
+    if decrease:
+        maxValue = popt[0]*popt[1]+popt[3]
+        offsetValue = popt[0]*popt[2]+popt[3]
+        #now normalize:
+        norm_Intensity = (Intensity - offsetValue)/(maxValue- offsetValue)
+        if isinstance(sem,str):
+            norm_sem = (semData)/(maxValue)
+    else:
+        maxValue = popt[0]*popt[2]+popt[3]
+        offsetValue = popt[0]*popt[1]+popt[3]
+        #now normalize:
+        norm_Intensity = (Intensity - offsetValue)/(maxValue-offsetValue)
+        if isinstance(sem,str):
+            norm_sem = (semData)/(maxValue)
+
+    
+    if isinstance(sem,str):
+        # print('normed sem')
+        return [norm_Intensity, norm_sem]
+    else:
+        return norm_Intensity

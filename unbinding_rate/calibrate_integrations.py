@@ -11,10 +11,18 @@ import pandas as pd
 from synchronization import rst_tools_v2 as rst
 import numpy as np
 from matplotlib import pyplot as plt
+from tkinter import filedialog
+from tkinter import Tk
 
-meta_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\meta\\"
-uncalib_integration_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\uncalib_integration\\"
-calib_integration_folder = r"C:\Users\shm975\Documents\tempData\211221\lambda\integration\\"
+root = Tk()
+root.withdraw()
+root.attributes("-topmost", True)
+#ask for directory containing the data
+meta_folder = filedialog.askdirectory(title='choose meta directory') +'/'
+uncalib_integration_folder = filedialog.askdirectory(title='choose uncalib directory')+'/'
+calib_integration_folder = filedialog.askdirectory(title='choose calib directory')+'/'
+
+
 
 meta_files = os.listdir(meta_folder)
 integration_files = os.listdir(uncalib_integration_folder)
@@ -53,7 +61,8 @@ for f in integration_files:
     except NameError:
         continue
     
-    conv = findTimeCov(meta_folder+meta)
+    #enter time conversion or extract from meta file if possible
+    conv = 0.2#findTimeCov(meta_folder+meta)
     print(conv)
     #now load the actual file as pandas, add the calibrated time column save and close:
     data = pd.read_csv(uncalib_integration_folder+f)

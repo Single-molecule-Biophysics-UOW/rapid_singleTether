@@ -76,7 +76,37 @@ class hypoexpon_triple(GenericLikelihoodModel):
             
         return super(hypoexpon_triple, self).fit(start_params=start_params,
                                                     maxiter=maxiter, maxfun=maxfun, **kwds)    
+class gaussian_double(GenericLikelihoodModel):
+    def __init__(self, endog, exog=None, **kwds):
+        if exog is None:
+            exog = np.zeros_like(endog)
+            endog_names = ['l1,s1,l2,s2']
+            
+        super(gaussian_double, self).__init__(endog, exog, **kwds)
+    # def _argcheck(self, l1,l2,l3):
+    #     return l1!=l2 and l1>0 and l2>0 and l3>0
+    def _pdf(self,x,l1,s1,l2,s2):
+        return stats.norm.pdf(x,l1,s1)+stats.norm.pdf(x,l2,s2)
+    def nloglikeobs(self, params):
+        l1 = params[0]
+        s1 = params[1]
+        l2 = params[2]
+        s2 = params[3]
 
+        return -np.log(self._pdf(self.endog, l1, s1,l2,s2))
+    
+    def fit(self, start_params=None, maxiter=10000, maxfun=5000, **kwds):
+        if start_params is None:
+            l1_start = 0#self.endog.mean()
+            s1_start = 1    
+            l2_start = 0
+            s2_start = 1
+            #excess_zeros = (self.endog == 0).mean() - stats.poisson.pmf(0, lambda_start)
+            
+            start_params = np.array([l1_start,s1_start, l2_start, s2_start])
+            
+        return super(gaussian_double, self).fit(start_params=start_params,
+                                                    maxiter=maxiter, maxfun=maxfun, **kwds) 
     
 class exphypoexpon(GenericLikelihoodModel):
     def __init__(self, endog, exog=None, **kwds):
