@@ -17,7 +17,7 @@ from synchronization import rst_tools_v2 as rst
 from scipy.signal import savgol_filter
 #%%
 
-dataFolder = r"C:\Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\lambda\211221\integration/"
+dataFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\integration/"
 
 
 files = os.listdir(dataFolder)
@@ -25,8 +25,8 @@ print(files)
 
 
 #%% load data
-dataframe = pd.read_csv(dataFolder+files[2])
-dataframe.name = files[2]
+dataframe = pd.read_csv(dataFolder+files[1])
+dataframe.name = files[1]
 
 print(dataframe.name)
 
@@ -65,7 +65,7 @@ def lin(x,m,t):
 dataframe.reset_index(inplace=True)
 
 
-#%% normalization to basepairs
+ #%% normalization to basepairs
 #Start intensity is 2600 bp dsDNA, end is 2600 ssDNA
 #use fitted values to do normalization
 
@@ -172,29 +172,34 @@ dataframe['b'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,
 
 
 #%% plot all events:
-# plt.ioff()
-# try:
-#     dataframe.reset_index(inplace=True)
-# except ValueError:
-#     #already reset index
-#     pass
-# eventFolder = r"C:\Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\lambda\211222\events_012/"
-# rst.plot_all_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple','rate'])
+plt.ioff()
+try:
+    dataframe.reset_index(inplace=True)
+except ValueError:
+    #already reset index
+    pass
+eventFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\events_006/"
+
+rst.plot_all_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple','rate'])
 
 #%% save the normalized data:
-# norm_dataFolder = r"C:\Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\lambda\211221\norm_integration/"
-# if os.path.isdir(norm_dataFolder) == False:
-#     os.makedirs(norm_dataFolder)
-# try:
-#     dataframe.reset_index(inplace=True)
-#     print(dataframe.keys())
-# except Exception:
-#     pass
-# dataframe.to_csv(norm_dataFolder+'norm_'+dataframe.name, index=False)
+norm_dataFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\norm_integration/"
+
+if os.path.isdir(norm_dataFolder) == False:
+    os.makedirs(norm_dataFolder)
+try:
+    dataframe.reset_index(inplace=True)
+    print(dataframe.keys())
+except Exception:
+    pass
+dataframe.to_csv(norm_dataFolder+'norm_'+dataframe.name, index=False)
 
 
 #%%
-dataframe.reset_index(inplace = True)
+try:
+    dataframe.reset_index(inplace = True)
+except ValueError:
+    pass
 print(dataframe.keys())
 #%%
 rates = []
@@ -224,8 +229,9 @@ print(dataframe.name)
     
 df_rates = pd.DataFrame({'rate':rates})
 
-folder = r"C:\Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\lambda\211222/"
-df_rates.to_csv(folder+"new_rates_009.csv",index=False)
+folder = r"C:\Users\shm975\Documents\OneDrive - University of Wollongong\phi29Paper\data\lambda\all_rates/"
+
+df_rates.to_csv(folder+"new_rates_006.csv",index=False)
 
 #%%
 # #dataframe.reset_index(inplace=True)    
