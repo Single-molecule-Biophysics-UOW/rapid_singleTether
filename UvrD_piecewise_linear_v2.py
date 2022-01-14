@@ -13,8 +13,12 @@ from synchronization import rst_tools_v2 as rst
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 
+
+
+
 #%% C:\Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211212\integration
-folder = r'C:/Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211214\integration/'
+folder = r'C:\Users\shm975\Documents\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211214/integration/'
+#folder = r'C:/Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211214\integration/'
 
 files = os.listdir(folder)
 files = [x for x in files if 'csv' in x]
@@ -61,9 +65,6 @@ def complex_norm(df, smooth = False):
 
     #now normalize:
     norm_Intensity = (Intensity - offsetValue)/(maxValue-offsetValue)
-    
-    
-    
     return norm_Intensity
 
 #first make sure seconds are passed to norm function by setting them as index:
@@ -112,7 +113,7 @@ for i in choices:
     ax.set_xlim([0,200])
     n+=1
     
-    fig.savefig('UwrD_unwind_normalisation_figure.svg')
+    #fig.savefig('UwrD_unwind_normalisation_figure.svg')
 plt.show()
 
 
@@ -153,15 +154,25 @@ def piecewise_fit(df,output = 'predict',function = rst.piecewise_linear):
         return pcov
     if output == 'slope':        
         return np.ones(len(x))*popt[0]
+    if output == 'a':        
+        return np.ones(len(x))*popt[1]
+    if output == 'b':        
+        return np.ones(len(x))*popt[2]
 #dataframe.reset_index(inplace=True)    
 try:
     dataframe.set_index('seconds',inplace=True)
 except KeyError:
     pass
 
-dataframe['piecewise'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,output='predict')
+
 dataframe['piecewise_triple'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=rst.piecewise_linear_triple,output='predict')
+print('finished piecewisetriple')
 dataframe['rate'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=rst.piecewise_linear_triple,output='slope')
+print('finished rate')
+dataframe['a'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=rst.piecewise_linear_triple,output='a')
+dataframe['b'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=rst.piecewise_linear_triple,output='b')
+
+
 
 #%% plot all events:
 plt.ioff()
@@ -171,8 +182,9 @@ except ValueError:
     #already reset index
     pass
 
-eventFolder = r'C:/Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211214\events/'
-rst.plot_all_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple','rate'])
+eventFolder = r'C:\Users\shm975\Documents\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211212/events_complete/'
+rst.plot_complete_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple','rate','a','b'])
+
 #%% save the normalized data:
 norm_dataFolder = r'C:/Users\stefa\OneDrive - University of Wollongong\phi29Paper\data\UvrD_unwinding\211214\norm_integration/'
 
@@ -185,24 +197,78 @@ try:
 except Exception:
     pass
 dataframe.to_csv(norm_dataFolder+'norm_'+dataframe.name, index=False)
+
+
 #%%
+try:
+    dataframe.reset_index(inplace=True)
+except ValueError:
+    pass
 rates = []
 for name,group in dataframe.groupby('trajectory'):
+    
+    maxT = group['seconds'].max()
+    if (group['a'].unique()[0] < 0) or  (group['b'].unique()[0] < 0):
+        print('sort out traj {}, negative a'.format(name))
+        continue
+    if (group['a'].unique()[0] > maxT) or  (group['b'].unique()[0] > maxT):
+        print('sort out traj {}, too big params'.format(name))
+        continue
     rates.append(-group['rate'].unique()[0])
 #rates = (-dataframe['rate'].unique())
 rates = np.array(rates)
+
 #%%
 rates = rates[rates > 0]
-rates = rates[rates<300]
-fig = plt.figure()
-plt.hist(rates,edgecolor = 'black',facecolor='grey',label='n={}'.format(len(rates)),bins = int(np.sqrt(len(rates))))
+rates = rates[rates<80]
+ratesToFit = rates[rates<80]
+fig,ax = plt.subplots()
+ax.hist(rates,edgecolor = 'black',facecolor='grey',label='n={}'.format(len(rates)),density=True,bins=25)
 #plt.hist(rates2,facecolor='gold',alpha=0.5,edgecolor = 'black',label='n={}'.format(len(rates2)),bins = int(np.sqrt(len(rates2))))
 plt.xlabel('time (s)')
 plt.ylabel('count')
 plt.legend()
 plt.show()
-fig.savefig('UvrD_unwinding_hist_50uM.svg')
-#%%
-rates = pd.Series(rates)
-print(rates.mean())
-print(rates.sem())
+#fig.savefig('UvrD_unwinding_hist_50uM.svg')
+
+
+from sklearn.mixture import GaussianMixture
+
+from sklearn.mixture import BayesianGaussianMixture
+
+#model = GaussianMixture(2,tol=10e-5,covariance_type='diag',max_iter=1000, n_init = 10,init_params='random', weights_init=[0.1,0.9]).fit(np.array(mixed_random).reshape(-1,1))
+model = GaussianMixture(2,tol=10e-5,covariance_type='full',weights_init=[0.3,0.7],means_init = np.array([10,40]).reshape(-1,1)).fit(np.array(ratesToFit).reshape(-1,1))
+
+
+
+# plot resulting fit
+x_range = np.arange(0,70,0.1)
+pdf = np.exp(model.score_samples(x_range.reshape(-1, 1)))
+responsibilities = model.predict_proba(x_range.reshape(-1, 1))
+pdf_individual = responsibilities * pdf[:, np.newaxis]
+print(model.means_)
+print(model.covariances_.shape)
+
+cov = model.covariances_
+
+print(np.diag(model.covariances_[1]))
+print(model.predict(np.array(ratesToFit).reshape(-1,1)))
+print([ np.sqrt(  np.trace(cov[i])/2) for i in range(0,2) ])
+print('sem1 = {}'.format(np.sqrt(model.covariances_[0,0])))
+print('sem2 = {}'.format(np.sqrt(model.covariances_[1,0])))
+
+print(model.weights_)
+#plt.hist(logged_counts, bins='auto', density=True, histtype='stepfilled', alpha=0.5)
+ax.plot(x_range, pdf, label='Mixture diag',color='black')
+ax.plot(x_range, pdf_individual,ls='--', label='Components',color='black')
+
+# ax.plot(x_range, pdf_b, label='Mixture diag',color='orange')
+# ax.plot(x_range, pdf_individual_b,ls='--', label='Components',color='orange')
+
+
+# ax.plot(x_range, pdf2, label='Mixture diag',color='black')
+# ax.plot(x_range, pdf_individual2,ls='--', label='Components',color='black')
+
+
+# fig.savefig('dg_uvrD_unwinding.svg')
+plt.show()

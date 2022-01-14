@@ -231,7 +231,83 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                 #make new one:
                 fig,ax = plt.subplots(3,3)
                 n= 0
+def plot_complete_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 'slice', ycolumn = 'Intensity', groupName = 'trajectory'):
+    """
+    
+
+    Parameters
+    ----------
+    df_integration : pd.DataFrame
+        datframe containing all trajectories to plot.
+    out : String
+        path to output folder
+    df_segment : pd.DataFrame, optional
+        dataframe containing segments from changePoint
+    segments : bool, optional
+        Segments will be plotted if True. The default is False.
+    xcolumn : String, optional
+        xcolumn name. The default is 'slice'.
+    ycolumn :  String, optional
+        ycolumn name. The default is 'Intensity'.
+    groupName : String, optional
+        Name to group data by. The default is 'trajectory'.
+        Necessary if data contains more than one trajectory
+
+    Returns
+    -------
+    None.
+
+    """
+    fig,ax = plt.subplots(3,3)
+    ax_positions = itertools.permutations((0,1,2),2)
+    indeces = list(itertools.product([0,1,2],repeat =2))
+    n=0
+
             
+    if isinstance(ycolumn,list):
+        for name,group in df_integration.groupby(groupName):
+            maxT = group[xcolumn].max()
+            print(group['a'])
+            if (group['a'].unique()[0] < 0) or  (group['b'].unique()[0] < 0):
+                # print('sort out traj {}, negative a'.format(name))
+                continue
+            if (group['a'].unique()[0] > maxT) or  (group['b'].unique()[0] > maxT):
+                # print('sort out traj {}, too big params'.format(name))
+                continue
+            if 'rate' in ycolumn:
+                label = '{:.2f} bp/s'.format((group['rate'].unique())[0])
+            else:
+                label = None                 
+            for column in ycolumn:
+                #print ('n:{}, column:{}'.format(n,column))
+                try:
+                    t = (indeces[n])
+                except:
+                    print("indexing error")
+                try:
+                    t=(group[column])
+                except:
+                    print('ycolumn problem')
+                line, =ax[indeces[n]].plot(group[xcolumn],group[column])
+                
+                
+                #ax[indeces[n]].plot([0,group[xcolumn].max()],[group[column].mean()+10*group[column].std(),group[column].mean()+10*group[column].std()])
+                ax[indeces[n]].set_title('trajectory {}'.format(name))
+                if segments:
+                    #find the corresponding segments:                    
+                    segment = df_segment.loc[df_segment[groupName] == name]
+                    segmentPlotter(segment,ax[indeces[n]])  
+            line.set_label(label)
+            ax[indeces[n]].legend()
+            
+            n+=1
+            if n == 9:
+                #save figure and close it:
+                fig.savefig(out+'trajectory_'+str(name)+'.png')
+                plt.close(fig)
+                #make new one:
+                fig,ax = plt.subplots(3,3)
+                n= 0            
 def normalize_all_trajs(df,ycolumn,head=0,tail=0):
     df['norm_'+ycolumn] = df.groupby('trajectory')[ycolumn].transform(norm,head=head,tail=tail)
     return df
