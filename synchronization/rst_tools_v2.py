@@ -308,7 +308,7 @@ def plot_complete_trajs(df_integration,out,df_segment=None,segments=False, xcolu
                 #make new one:
                 fig,ax = plt.subplots(3,3)
                 n= 0            
-def normalize_all_trajs(df,ycolumn,head=0,tail=0):
+
     df['norm_'+ycolumn] = df.groupby('trajectory')[ycolumn].transform(norm,head=head,tail=tail)
     return df
 

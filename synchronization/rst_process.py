@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 #load files
 
-folder = 'C:/Users/shm975/Documents/tempData/211023/phi29/integration/'
+folder = 'G:/phi29/allData/integrations/'
 files=os.listdir(folder)
 
 preReactions = [f for f in files if 'prereaction' in f]
@@ -21,17 +21,19 @@ reactions = [f for f in files if '_reaction' in f]
 print(reactions)
 #read files and merge color channels.
 #%%
-C1_reaction = pd.read_csv(folder+reactions[0]) 
-C1_preReaction = pd.read_csv(folder+preReactions[0])
-C2_reaction = pd.read_csv(folder+reactions[2]) 
-C2_preReaction = pd.read_csv(folder+preReactions[2])
+C1_reaction = pd.read_csv(folder+reactions[22]) 
+C1_preReaction = pd.read_csv(folder+preReactions[22])
+C2_reaction = pd.read_csv(folder+reactions[-2]) 
+C2_preReaction = pd.read_csv(folder+preReactions[-2])
+#%%
 
-print(C2_reaction)
 
-df_reaction = pd.merge(C1_reaction,C2_reaction, on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
+df_reaction = C1_reaction.merge(C2_reaction, how='outer', on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
 
+print(C1_reaction)
 print(df_reaction)
-df_preReaction = pd.merge(C1_preReaction,C2_preReaction, on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
+#%%
+df_preReaction = pd.merge(C1_preReaction,C2_preReaction,how='outer', on=['trajectory','slice','x','y'],suffixes = ["_DNA","_RPA"])
 
 
 #print (df_reaction)
@@ -60,24 +62,31 @@ def subtract_bg(preReaction,reaction):
     
 calibrate(df_reaction,1)
 calibrate(df_preReaction,1)
-import rst_tools as rst
-rst.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211023/phi29/all_traj/')
+import sys
+sys.path.append("C:/Users/StefanMueller/Documents/rapid_singleThether/")
+from synchronization import rst_tools_v2 as rst
+# rst.plot_allBig(df_reaction,'C:/Users/shm975/Documents/tempData/211023/phi29/all_traj/')
 #subtract_bg(df_preReaction,df_reaction)
 #%%
+df_reaction= df_reaction.dropna()
+
 def rolling_avg(df):
     df["smoothRPA"] = df['Intensity_RPA'].rolling(3,min_periods=1).mean()
     df["smoothDNA"] = df['Intensity_DNA'].rolling(3,min_periods=1).mean()
-df_reaction.reset_index(inplace=True)
-dfFiltered,sortOutDNA = rst.findEvents_v2(df_reaction,column = 'Intensity_DNA',Rscore=0.65, return_events=True)
+# df_reaction.reset_index(inplace=True)
+# dfFiltered,sortOutDNA = rst.selectEvents(df_reaction,column = 'Intensity_DNA',Rscore=0.65, return_events=True)
 #eventList = [3,9,15,17,48,61,62,68,71,77,89,91,106,111,115,117,121,122,123,129,132,137,148,157,158,161,164,167,177,
 #             195,214,215,216,218,220,240,243,244,246,248,252,257,286,296,299,303,322,325,326,330,336,342,344,346,349,350,355,357,366,367,375,
 #             382,386,387,390,399,404,408,418,422,426,427,437,442,447,451,455,458,464,474,475,479,481,485,492,501,503]
-#dfFiltered = rst.selectEvents(df_reaction, eventList)
+dfFiltered = rst.find_unbinding_v2(df_reaction,'Intensity_DNA', 0.65, 50000)
+
+
+
 
 rolling_avg(dfFiltered)
 
-
-
+#%%
+print(dfFiltered)
 
 #%%plot some trajectories
 import itertools
