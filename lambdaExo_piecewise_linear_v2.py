@@ -2,111 +2,53 @@
 """
 Created on Wed Dec 29 16:04:40 2021
 
-@author: shm975
+__author__ = Stefan H. Mueller
+__email__ = smueller@uow.edu.au
+
 """
 
 
 
-
+#import useful packages
 import pandas as pd
 import os
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-from synchronization import rst_tools_v2 as rst
 from scipy.signal import savgol_filter
-#%%
+import sys
+#provide path to directory containing rst_tools_v2.py
 
-dataFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\integration/"
+sys.path.append("C:/Users/smueller/Documents/GitHub/rapid_singleThether/")
+from synchronization import rst_tools_v2 as rst
 
+#%% read the data
 
-files = os.listdir(dataFolder)
-print(files)
+#change this to the filepath and filename containing integrated rois
+dataFolder = r"D:\Tirf\Lisannes_microscope\211215\Lambda\integration/"
+fileName = "new_lambda_5'biossDNA_ATP0uM_OD3.3_003"
 
-
-#%% load data
-dataframe = pd.read_csv(dataFolder+files[1])
-dataframe.name = files[1]
-
-print(dataframe.name)
-
-#%%
-def piecewise_linear(x,m,a,t):
-    """
-    \
-     \
-      \
-       \_________
-
-    """
-    f1 = lambda x: m*x+t
-    f2 = lambda x: m*a+t
-    piecewise = np.piecewise(x,[x<=a],[f1,f2])
-    return piecewise
-
-def piecewise_linear_triple(x,m,a,b,t):
-    """
-    ________
-            \
-             \
-              \
-               \_________
-
-    """
-    f0 = lambda x: m*a+t
-    f1 = lambda x: m*x+t
-    f2 = lambda x: m*b+t
-    piecewise = np.piecewise(x,(x<a,(x>=a)&(x<=b),x>b),[f0,f1,f2])
-    return piecewise
-
-def lin(x,m,t):
-    return m*x+t
-
-dataframe.reset_index(inplace=True)
+dataframe = pd.read_csv(dataFolder+fileName)
+dataframe.name = fileName
 
 
- #%% normalization to basepairs
-#Start intensity is 2600 bp dsDNA, end is 2600 ssDNA
+
+#%% normalization to basepairs
+#Start intensity is 2600 bp dsDNA, end is 2600 nts ssDNA and 0bp dsDNA
 #use fitted values to do normalization
 
 
-def complex_norm(df,smooth = False):
-    t = df.index
-    Intensity = df
-    if smooth:
-        Intensity = savgol_filter(Intensity,7,3)
-
-    # print(t)
-    #first do the fit and return popt:
-    try:
-        popt,pcov= curve_fit(piecewise_linear_triple, t,Intensity,p0=[-200,30,300,np.max(Intensity)-1],bounds=((-np.inf,np.min(t),np.min(t),0),(np.inf,np.max(t),np.max(t),np.max(Intensity))),maxfev=10000)
-    
-    except Exception:
-        print(Exception)
-        # print(t)
-        # print(Intensity)
-        # plt.plot(t,Intensity)
-        # plt.plot(t,piecewise_linear_triple(t,-20,30,300,100000))
-        # plt.show()
-        norm_Intensity = np.ones(len(t))*np.nan
-        return norm_Intensity
-    # intensity when time <popt[1]: 2600 bp
-    # intensity when time >popt[2]: 0 bp
-    maxValue = popt[0]*popt[1]+popt[3]
-    offsetValue = popt[0]*popt[2]+popt[3]
-
-
-    #now normalize:
-    norm_Intensity = (Intensity - offsetValue)/(maxValue-offsetValue)
-    
-    return norm_Intensity
 
 #first make sure seconds are passed to norm function by setting them as index:
 try:
     dataframe.set_index('seconds',inplace=True)
 except KeyError:
     pass
-dataframe['norm_Intensity'] = dataframe.groupby('trajectory')['Intensity'].transform(complex_norm,smooth = True)
+
+#apply normalization to the whole dataset trajectory by trajectory
+#by using pandas.transform. the normalization is implemented in rst_tools_v2.py
+#and described in the methods section
+dataframe['norm_Intensity'] = dataframe.groupby('trajectory')['Intensity'].transform(rst.complex_norm)
 dataframe['nts'] = dataframe['norm_Intensity']*2620
 try:
     dataframe.reset_index(inplace=True)
@@ -114,61 +56,53 @@ except KeyError:
     #already reset.
     pass
 
-
-
-
-#%% fit every trajectory again to get rates:
-
-
-def piecewise_fit(df,output = 'predict',function = piecewise_linear):
-    #print(df.head(20))
-    #check for nans first:
-    x,y = np.array(df.index.get_level_values(0)),np.array(df)
-    if np.isnan(np.sum(y)):
-        if output == 'predict':
-            return np.ones(len(x))*np.nan
-        if output == 'score':
-            return [np.nan,np.nan,np.nan]
-        if output == 'slope':        
-            return np.ones(len(x))*np.nan
-    if function == piecewise_linear:
-        p0 = [-10,10,0]
-    else:
-        p0 = p0=[-10,10,200,0]
+#%%plot random trajectory:
     
-    try:
-        popt,pcov = curve_fit(function,x,y,p0=p0)
-    except RuntimeError:
-        if function == piecewise_linear_triple:
-            popt = [np.nan,np.nan,np.nan,np.nan]
-        else:
-            popt = [np.nan,np.nan,np.nan]
-        fity = np.ones(len(x))*np.nan
-    fity = function(x,*popt)
-    #d = {'fity': fity, 'score': np.ones(fity.shape)*score}
-    #regrdf = pd.DataFrame(data=d)
+dataframe.sort_values('slice',inplace=True)
+    
+grouped = dataframe.groupby('trajectory')
+# traj = grouped.get_group(107)
+groups = list(grouped.groups.keys())
+choice = np.random.choice(groups,size=1)[0] #52
+traj = grouped.get_group(choice)
 
-    if output == 'predict':
-        return fity
-    if output == 'score':
-        return pcov
-    if output == 'slope':        
-        return np.ones(len(x))*popt[0]
-    if output == 'a':        
-        return np.ones(len(x))*popt[1]
-    if output == 'b':        
-        return np.ones(len(x))*popt[2]
-#dataframe.reset_index(inplace=True)    
+
+fig, ax = plt.subplots()
+ax.plot(traj['slice'], traj['nts'])
+# ax.plot(traj['slice'], traj['mapped_fit'])
+
+
+plt.show()
+
+
+
+#%% calculate rates:
+# now the data is normalized to basepairs. the slope of the fit theoretically
+# contains the rate of the enzyme but the unit would be arb. Unit/frame. To get
+# the right value it is easiest to just fit again. The function piecewise_fit
+# implemented in rst_tools_v2.py does almost the same as the complex_norm function
+# but it returns the individual fit parameter rather a normalized Intensity
+# In future versions of this script the two functions might be merged.
+
+   
 try:
-    dataframe.set_index('seconds',inplace=True)
+   # just make sure the calibrated 'seconds' column is the index
+   dataframe.set_index('seconds',inplace=True)
 except KeyError:
     pass
 
-dataframe['piecewise'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,output='predict')
-dataframe['piecewise_triple'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=piecewise_linear_triple,output='predict')
-dataframe['rate'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=piecewise_linear_triple,output='slope')
-dataframe['a'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=piecewise_linear_triple,output='a')
-dataframe['b'] = dataframe.groupby('trajectory')['nts'].transform(piecewise_fit,function=piecewise_linear_triple,output='b')
+# apply the function 4 times returning the actual fit y-values or the parameters
+# of the fit respectively. In future versions of the script this will be done
+# in one go. Somehow.
+
+dataframe['piecewise_triple'] = dataframe.groupby('trajectory')['nts'].transform(
+    rst.piecewise_fit,function=rst.piecewise_linear_triple,output='predict')
+dataframe['rate'] = dataframe.groupby('trajectory')['nts'].transform(
+    rst.piecewise_fit,function=rst.piecewise_linear_triple,output='slope')
+dataframe['a'] = dataframe.groupby('trajectory')['nts'].transform(
+    rst.piecewise_fit,function=rst.piecewise_linear_triple,output='a')
+dataframe['b'] = dataframe.groupby('trajectory')['nts'].transform(
+    rst.piecewise_fit,function=rst.piecewise_linear_triple,output='b')
 
 
 #%% plot all events:
@@ -178,12 +112,22 @@ try:
 except ValueError:
     #already reset index
     pass
-eventFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\events_006/"
+# enter the path to a folder where you want the plots (1 png file per 9 trajectories) to be saved
+# Be warned if files with the same names do exist in the same folder they will
+# be overwritten.
+eventFolder = r"D:\Tirf\Lisannes_microscope\211215\Lambda\plots/"
+#if the folder doesnt exist we create it
+if os.path.isdir(eventFolder) == False:
+    os.makedirs(eventFolder)
 
-rst.plot_all_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple','rate'])
+# the actual plot function is implemented in rst_tools_v2.py.
+# xcolumn specifies the name of the x column to be plotted. ycolumn is the name
+# of the ycolumn. Multiple y-columns are allowed in the form of a list.
+# if rate is added to ycolumn it will be added as label.
+rst.plot_all_trajs(dataframe, eventFolder, xcolumn = 'seconds',ycolumn = ['nts','piecewise_triple', 'rate'])
 
 #%% save the normalized data:
-norm_dataFolder = r"C:\Users\shm975\Documents\tempData\211216\lambda\norm_integration/"
+norm_dataFolder = r"D:\Tirf\Lisannes_microscope\211215\Lambda\norm_data"
 
 if os.path.isdir(norm_dataFolder) == False:
     os.makedirs(norm_dataFolder)
@@ -201,7 +145,12 @@ try:
 except ValueError:
     pass
 print(dataframe.keys())
-#%%
+#%% make rate histogram:
+
+# to get a rate histogram we loop through all trajectories. We check if
+# the fit-parameters are sensible (see methods section of paper). If they are
+# realistic we add the value to the list
+
 rates = []
 for name,group in dataframe.groupby('trajectory'):
     maxT = group['seconds'].max()
@@ -213,19 +162,34 @@ for name,group in dataframe.groupby('trajectory'):
     rates.append(-group['rate'].unique()[0])
 #rates = (-dataframe['rate'].unique())
 rates = np.array(rates)
-#%%
+#%% plot histogram
+
+# a last step sorting out events that escaped the previous selection:
+# sort out negative rates.
 rates = rates[rates > 0]
-rates = rates[rates<100]
+# and sort out outliers. Either set to sensible value manually or exclude
+# values based on the standard deviation of the distribution:
+# warning: running this cell multiple times will filter out more and more values
+# since you always sort out whats below the new standard deviation!
+threshold = np.mean(rates) + 5* np.std(rates)
+rates = rates[rates<threshold]
 plt.figure()
 plt.hist(rates,edgecolor = 'black',label='n={}'.format(len(rates)),bins = int(np.sqrt(len(rates))))
-#plt.hist(rates2,facecolor='gold',alpha=0.5,edgecolor = 'black',label='n={}'.format(len(rates2)),bins = int(np.sqrt(len(rates2))))
+
 plt.xlabel('time (s)')
 plt.ylabel('count')
 plt.legend()
 plt.show()
-#%% save the rates:
-print(dataframe.name)
-#%%
+
+# if you want to save the figure:
+# the format is automatically inferred from the fileending, supported are standard
+# image filetypes like png, jpg,...
+# available vector graphic formats are svg pdf eps...
+filetype = 'svg'
+fig.savefig('rate_hist.{}'.format(filetype))
+
+#%% save the rates to csv file:
+
     
 df_rates = pd.DataFrame({'rate':rates})
 
@@ -233,70 +197,3 @@ folder = r"C:\Users\shm975\Documents\OneDrive - University of Wollongong\phi29Pa
 
 df_rates.to_csv(folder+"new_rates_006.csv",index=False)
 
-#%%
-# #dataframe.reset_index(inplace=True)    
-# rates = []
-# rates_old = []
-# for name,group in dataframe.groupby('trajectory'):
-#    # group.set_index('seconds',inplace=True)
-#     slope = (piecewise_fit(group['Intensity'],function=piecewise_linear_triple,output='slope'))
-#     slope2 = (piecewise_fit(group['Intensity'],function=piecewise_linear,output='slope'))
-#     rates.append(-slope)
-#     rates_old.append(-slope2)
-# print(rates)
-# #%%
-# rates = np.array(rates)
-# rates = rates[rates>0]
-# #rates = rates[rates<5000]
-
-# rates2 = np.array(rates_old)
-# rates2 = rates2[rates2>0]
-# #rates2 = rates2[rates2<5000]
-
-# plt.figure()
-# plt.hist(rates,edgecolor = 'black',label='n={}'.format(len(rates)),bins = int(np.sqrt(len(rates))))
-# plt.hist(rates2,facecolor='gold',alpha=0.5,edgecolor = 'black',label='n={}'.format(len(rates2)),bins = int(np.sqrt(len(rates2))))
-# plt.xlabel('time (s)')
-# plt.ylabel('count')
-# plt.legend()
-# plt.show()
-
-# #%%
-# path=r"C:\Users\shm975\Documents\tempData\211221\lambda/events/"
-# dataframe.reset_index(inplace=True)
-# eventFolder = os.path.isdir(path)
-# if not eventFolder:
-#     os.makedirs(path)
-# rst.plot_all_trajs(dataframe, path,xcolumn='seconds',ycolumn = ['Intensity','piecewise','piecewise_triple'])
-
-# #%%
-# n=0
-# rates = []
-# confidence = []
-# sortOutList = []
-# for name,group in dataframe.groupby('trajectory'):
-    
-#     #ax[n].plot(group['slice'],group['Intensity'])    
-#     popt_uncal,pcov_uncal = curve_fit(piecewise_linear,np.array(group['slice']),np.array(group['Intensity']),p0=[300,300,100000])
-#     print(popt_uncal)
-#     #assume it goes the whole way, then 2600bp equals f(0) - f(a)
-#     f0 =piecewise_linear(0,*popt_uncal)
-#     fa = piecewise_linear(popt_uncal[1],*popt_uncal)
-#     calib_intensity = np.array((group['Intensity']*2600 / (f0-fa)))
-#     calib_time = np.array(group['slice']*1)
-    
-    
-    
-#     popt,pcov = curve_fit(piecewise_linear,calib_time,np.array(calib_intensity),p0=[300,30,10000])
-#     print(np.sqrt(pcov[0,0]))
-#     if np.sqrt(pcov[0,0]) > 100:
-#         sortOutList.append(name)
-#         continue
-    
-#     #x = np.linspace(0,group['slice'].max(),10000)
-#     #print(x)
-#     #ax[n].plot(x,piecewise_linear(x,*popt), label = 'slope: {:.2f}, offset: {:.2f}, a={:.2f}'.format(popt[0],popt[1],popt[2]))
-#     #ax[n].legend()
-#     confidence.append(np.sqrt(pcov[0,0]))
-#     rates.append(popt[0])
-#     n+=1

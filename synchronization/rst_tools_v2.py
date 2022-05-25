@@ -618,3 +618,40 @@ def complex_norm(df,xy = None,sem=None,initial_guess =[-200,30,300,100000], decr
         return [norm_Intensity, norm_sem]
     else:
         return norm_Intensity
+def piecewise_fit(df,output = 'predict',function = piecewise_linear):
+
+    x,y = np.array(df.index.get_level_values(0)),np.array(df)
+    if np.isnan(np.sum(y)):
+        if output == 'predict':
+            return np.ones(len(x))*np.nan
+        if output == 'score':
+            return [np.nan,np.nan,np.nan]
+        if output == 'slope':        
+            return np.ones(len(x))*np.nan
+    if function == piecewise_linear:
+        p0 = [-10,10,0]
+    else:
+        p0 = p0=[-10,10,200,0]
+    
+    try:
+        popt,pcov = curve_fit(function,x,y,p0=p0)
+    except RuntimeError:
+        if function == piecewise_linear_triple:
+            popt = [np.nan,np.nan,np.nan,np.nan]
+        else:
+            popt = [np.nan,np.nan,np.nan]
+        fity = np.ones(len(x))*np.nan
+    fity = function(x,*popt)
+    #d = {'fity': fity, 'score': np.ones(fity.shape)*score}
+    #regrdf = pd.DataFrame(data=d)
+
+    if output == 'predict':
+        return fity
+    if output == 'score':
+        return pcov
+    if output == 'slope':        
+        return np.ones(len(x))*popt[0]
+    if output == 'a':        
+        return np.ones(len(x))*popt[1]
+    if output == 'b':        
+        return np.ones(len(x))*popt[2]
