@@ -9,7 +9,6 @@ import traceback
 import itertools
 from matplotlib import pyplot as plt
 import numpy as np
-from synchronization import STA as sta
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression
 import pandas as pd
@@ -26,9 +25,9 @@ def alignTime(df):
 def calcShift(df):
     """calculate the shift for aligment as in alignTime, but only return the shift"""
     regr = np.array(df)
-    oldTime = df.index.get_level_values(1)
     changePoint = np.where(np.gradient(regr)!=0)[0][0]     
     return changePoint
+
 def alignData(df,timeConversion,traj_column = 'trajectory',slice_column = 'slice',changePoint_column = 'regression',returnShift = False):
     df = df.set_index([traj_column,slice_column]).sort_index()
     df['alignedTime'] = df[changePoint_column].groupby(traj_column).transform(alignTime)
@@ -37,7 +36,7 @@ def alignData(df,timeConversion,traj_column = 'trajectory',slice_column = 'slice
         for name,groups in df[changePoint_column].groupby(traj_column):
             changePoint = calcShift(groups)
             cpList.append(changePoint)
-#convert time from frames to seconds:
+    #convert time from frames to seconds:
     df['seconds'] = df['alignedTime'].mul(timeConversion)
     df['raw time'] = df.index.get_level_values(1)*(timeConversion)
     if returnShift:
@@ -79,7 +78,20 @@ def regression_analysis(df, column = 'Intensity_DNA'):
     df['regression'] = df[column].groupby('trajectory').transform(regression,output='predict')
     df['score'] = df[column].groupby('trajectory').transform(regression,output='score')
     df['score_null'] = df[column].groupby('trajectory').transform(linearRegression,output='score')
+
+def subtract_bg(preReaction,reaction):    
+    #now subtract the bg from the RPA intensity:
+    #group background by trajectory. Here we make the assumption that the trajectory numbering is consistent!
+    groupedPreReaction = preReaction.groupby('trajectory')
+    groupedReaction = reaction.groupby('trajectory')
     
+    corr_Intensity_RPA = []
+    for name,group in groupedPreReaction:
+        #get baseline:
+        baseline = group['Intensity_RPA'].mean()
+        corr_Intensity_RPA.append(groupedReaction.get_group(name)['Intensity_RPA'] - baseline)
+    corrIntColumn = pd.concat(corr_Intensity_RPA)
+    reaction['corr_Intensity_RPA'] = corrIntColumn
     
 def findEvents_v2(df,Rscore,return_events=True, column = 'Intensity_DNA'):
     """find trajectories where DNA is clearly unbinding
@@ -99,47 +111,19 @@ def findEvents_v2(df,Rscore,return_events=True, column = 'Intensity_DNA'):
     sortOut = []
     for names,groups in df.groupby('trajectory'):        
         if groups['score'].mean()>Rscore:
-            #if groups['regression'].tail(5).mean() < groups['regression'].head(5).mean():
+
             values = groups['regression'].unique() #contains two values
-            print(values)
             if 2*list(values)[1] < list(values)[0]:
-                #print(groups['score'].mean(),groups['score_null'].mean())
+
                 if groups['score'].mean()>groups['score_null'].mean():
-                #print(names,'looks promising')
                     continue       
-        #print('filter pout:',names)
         sortOut.append(names)
-            #print(sortOut)
-        #print('drop',i)
     filtered = df[df.groupby('trajectory').filter(lambda x: x.name not in sortOut).astype('bool')]
     final = filtered.dropna()
     final.reset_index(inplace=True)
     return final,sortOut   
 
 
-
-# def plot_all_trajs(df,out):
-#     fig,ax = plt.subplots(3,3)
-#     indeces = list(itertools.product([0,1,2],repeat =2))
-#     n=0
-#     for name,group in df.groupby("trajectory"):                
-#         rpa = ((group["Intensity_RPA"]/group["Intensity_RPA"].max())*group["Intensity_DNA"].max()).rolling(4, min_periods=1).mean()
-#         ax[indeces[n]].plot(group["seconds"],rpa,color='magenta')
-#         ax[indeces[n]].plot(group["seconds"],group["Intensity_DNA"],color='black')
-#         #ax[indeces[n]].plot(group["seconds"],group["regression"],color='red')
-#         #ax[indeces[n]].plot(group["seconds"],-group["derivative"],color='blue')
-#         ax[indeces[n]].set_title('trajectory {}'.format(name))
-#         #find the corresponding segments:
-#         #segment = df_segment.loc[df_segment['trajectory'] == name]
-#         #segmentPlotter(segment,ax[indeces[n]])
-#         n+=1
-#         if n == 9:
-#             #save figure and close it:
-#             fig.savefig(out+'trajectory_'+str(name))
-#             plt.close(fig)
-#             #make new one:
-#             fig,ax = plt.subplots(3,3)
-#             n= 0
 
 def segmentPlotter(seg_data,ax):
     #steps = True:
@@ -174,7 +158,6 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
 
     """
     fig,ax = plt.subplots(3,3)
-    ax_positions = itertools.permutations((0,1,2),2)
     indeces = list(itertools.product([0,1,2],repeat =2))
     n=0
     
@@ -202,7 +185,6 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
             else:
                 label = None                 
             for column in ycolumn:
-                #print ('n:{}, column:{}'.format(n,column))
                 try:
                     t = (indeces[n])
                 except:
@@ -231,86 +213,7 @@ def plot_all_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 
                 #make new one:
                 fig,ax = plt.subplots(3,3)
                 n= 0
-def plot_complete_trajs(df_integration,out,df_segment=None,segments=False, xcolumn = 'slice', ycolumn = 'Intensity', groupName = 'trajectory'):
-    """
-    
 
-    Parameters
-    ----------
-    df_integration : pd.DataFrame
-        datframe containing all trajectories to plot.
-    out : String
-        path to output folder
-    df_segment : pd.DataFrame, optional
-        dataframe containing segments from changePoint
-    segments : bool, optional
-        Segments will be plotted if True. The default is False.
-    xcolumn : String, optional
-        xcolumn name. The default is 'slice'.
-    ycolumn :  String, optional
-        ycolumn name. The default is 'Intensity'.
-    groupName : String, optional
-        Name to group data by. The default is 'trajectory'.
-        Necessary if data contains more than one trajectory
-
-    Returns
-    -------
-    None.
-
-    """
-    fig,ax = plt.subplots(3,3)
-    ax_positions = itertools.permutations((0,1,2),2)
-    indeces = list(itertools.product([0,1,2],repeat =2))
-    n=0
-
-            
-    if isinstance(ycolumn,list):
-        for name,group in df_integration.groupby(groupName):
-            maxT = group[xcolumn].max()
-            print(group['a'])
-            if (group['a'].unique()[0] < 0) or  (group['b'].unique()[0] < 0):
-                # print('sort out traj {}, negative a'.format(name))
-                continue
-            if (group['a'].unique()[0] > maxT) or  (group['b'].unique()[0] > maxT):
-                # print('sort out traj {}, too big params'.format(name))
-                continue
-            if 'rate' in ycolumn:
-                label = '{:.2f} bp/s'.format((group['rate'].unique())[0])
-            else:
-                label = None                 
-            for column in ycolumn:
-                #print ('n:{}, column:{}'.format(n,column))
-                try:
-                    t = (indeces[n])
-                except:
-                    print("indexing error")
-                try:
-                    t=(group[column])
-                except:
-                    print('ycolumn problem')
-                line, =ax[indeces[n]].plot(group[xcolumn],group[column])
-                
-                
-                #ax[indeces[n]].plot([0,group[xcolumn].max()],[group[column].mean()+10*group[column].std(),group[column].mean()+10*group[column].std()])
-                ax[indeces[n]].set_title('trajectory {}'.format(name))
-                if segments:
-                    #find the corresponding segments:                    
-                    segment = df_segment.loc[df_segment[groupName] == name]
-                    segmentPlotter(segment,ax[indeces[n]])  
-            line.set_label(label)
-            ax[indeces[n]].legend()
-            
-            n+=1
-            if n == 9:
-                #save figure and close it:
-                fig.savefig(out+'trajectory_'+str(name)+'.png')
-                plt.close(fig)
-                #make new one:
-                fig,ax = plt.subplots(3,3)
-                n= 0            
-
-    df['norm_'+ycolumn] = df.groupby('trajectory')[ycolumn].transform(norm,head=head,tail=tail)
-    return df
 
 def norm(traj,head=100,tail=180):
     #traj_temp = traj.drop(traj.index[0:head],inplace=False)
@@ -333,7 +236,6 @@ def savgol_filter_smooth(df,wd=2,polyorder=2):
     return smoothed
     
 def smooth_all_trajectories(df,column,wd,groupName = 'trajectory',result_prefix = 'smooth',polyorder = 3,method = 'savgol'):
-    print(df.keys())
     groupedDF = df.groupby(groupName)
     print(groupedDF)
     
@@ -425,7 +327,6 @@ def find_unbinding_v2(df, column, Rscore, threshold):
     sortOutReason = []
     for name,group in df.groupby('trajectory'):        
         timing = group[group['regression'].diff().fillna(0) !=0]    #this is where the dissociation happends
-        #print(len(timing))
         #now see if the derivative at that time is above/below a threshold:
         #to avoid +-1 indexing errors take derivative
         if timing['derivative'].mean() < threshold:
@@ -445,7 +346,14 @@ def find_unbinding_v2(df, column, Rscore, threshold):
     final.reset_index(inplace=True)
     return final, sortOut, sortOutReason        
         
-        
+def trunc_trajs(df,xcolumn,lower,upper):
+    truncatedLower = df.groupby('trajectory').apply(
+        lambda x: x.loc[x[xcolumn] >lower ]
+        )
+    truncatedUpper = truncatedLower.groupby('trajectory').apply(
+        lambda x: x.loc[x[xcolumn] <upper ]
+        )
+    return truncatedUpper        
         
         
 def sortOut_trajectories(df, sortOut, groupName = 'trajectory'):
@@ -464,31 +372,11 @@ def sortOut_trajectories(df, sortOut, groupName = 'trajectory'):
     filtered pd.DataFrame
 
     """
-    print(df)   
     filtered = df[df.groupby(groupName).filter(lambda x: x.name not in sortOut).astype('bool')]
     final = filtered.dropna()
     final.reset_index(inplace=True)
     return final
         
-    #     if groups['score'].mean()>Rscore:
-    #         #if groups['regression'].tail(5).mean() < groups['regression'].head(5).mean():
-    #         values = groups['regression'].unique() #contains two values
-            
-    #         stepSize = values[0]-values[1]
-            
-    #         if stepSize >= threshold:
-    #             continue
-    #         else:
-    #             sortOut.append(names)
-    #             sortOutReason.append('smallStep')
-    #     else:
-    #         sortOut.append(names)
-    #         sortOutReason.append('lowScore')
-    # filtered = df[df.groupby('trajectory').filter(lambda x: x.name not in sortOut).astype('bool')]
-    # final = filtered.dropna()
-    # final.reset_index(inplace=True)
-    # return final, sortOut, sortOutReason
-
 
 
 def unbinding_timing(df,column, groupName,time_corr = False):
@@ -502,7 +390,6 @@ def unbinding_timing(df,column, groupName,time_corr = False):
         
     timingDF = pd.DataFrame({column:all_timing})
     return timingDF
-    
     
 def plot_allBig(df,out):
     
@@ -521,14 +408,6 @@ def plot_allBig(df,out):
         #segmentPlotter(segment,ax[indeces[n]])
         fig.savefig(out+'trajectory_'+str(name))
         plt.close(fig)
-        #n+=1
-        # if n == 9:
-        #     #save figure and close it:
-        #     fig.savefig(out+'trajectory_'+str(name))
-        #     plt.close(fig)
-        #     #make new one:
-        #     fig,ax = plt.subplots(3,3)
-        #     n= 0
     
 def piecewise_linear(x,m,a,t):
     """
@@ -568,31 +447,24 @@ def complex_norm(df,xy = None,sem=None,initial_guess =[-200,30,300,100000], decr
     if xy:
         t = np.array(df[xy[0]])
         Intensity = np.array(df[xy[1]])
-        print(Intensity)
+
     else:
         t = df.index
         Intensity = np.array(df)
-        print(Intensity)
+
     if isinstance(sem,str):
         semData = np.array(df[sem])
-        # print('norm sem')
+
     
 
-    # print(t)
+
     #first do the fit and return popt:
     try:
-        # print('trying to fit')
         popt,pcov= curve_fit(piecewise_linear_triple, t,Intensity,p0=initial_guess,maxfev=10000)
     except ValueError:
         traceback.print_exc()
         raise ValueError      
     except Exception as inst:
-        print(type(inst))
-        # print(t)
-        # print(Intensity)
-        # plt.plot(t,Intensity)
-        # plt.plot(t,piecewise_linear_triple(t,-20,30,300,100000))
-        # plt.show()
         norm_Intensity = np.ones(len(t))*np.nan
         return norm_Intensity
     # intensity when time <popt[1]: 2600 bp
@@ -612,14 +484,11 @@ def complex_norm(df,xy = None,sem=None,initial_guess =[-200,30,300,100000], decr
         if isinstance(sem,str):
             norm_sem = (semData)/(maxValue)
 
-    
     if isinstance(sem,str):
-        # print('normed sem')
         return [norm_Intensity, norm_sem]
     else:
         return norm_Intensity
 def piecewise_fit(df,output = 'predict',function = piecewise_linear):
-
     x,y = np.array(df.index.get_level_values(0)),np.array(df)
     if np.isnan(np.sum(y)):
         if output == 'predict':
