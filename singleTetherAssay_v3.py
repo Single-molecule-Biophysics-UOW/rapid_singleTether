@@ -3,8 +3,8 @@ from ij.plugin.frame import RoiManager
 from ij.plugin.filter import Analyzer
 from ij.plugin import HyperStackConverter
 from IOFunctions import pyIO
-from bgCorrClass import Bgcorr
-from driftCorrClass import DriftCorr
+
+
 from ij import WindowManager
 
 import coloc
@@ -16,7 +16,13 @@ import java.awt.Robot as Robot
 import java.awt.event.KeyEvent as KeyEvent
 
 developmentMode = True	#set this to false if you're just using the script!
-
+def saveResultsTable(path):
+	allTitles = tableUtil.getResultsTableTitles()
+	#print(allTitles)
+	title = tableUtil.getResultsTableTitles()[0]
+	table = tableUtil.getResultsTable(title)
+	table.save(path)	
+	tableUtil.removeResultsTable(title)
 def deleteSource():
 	""" deletes the compiled source file in the install dir, to make sure it's recompiled after changes are made.
 	   tool for development! Should otherwise not be called!
@@ -109,7 +115,8 @@ for preFile,reactFile in zip(preReaction,reaction):
 		tableWindow = WindowManager.getWindow("Trajectory Integrations")	
 		#IJ.run("Sort", "table=[Trajectory Integrations] column=slice group=trajectory ascending");
 		tableWindow.setTitle(preChannels[i].getTitle())	
-		preChannels[i].close()		
+		preChannels[i].close()	
+		saveResultsTable(OutputFolder+f[:-3]+'.csv')
 
 if developmentMode == True:
 	deleteSource()
